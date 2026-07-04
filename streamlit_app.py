@@ -19,104 +19,45 @@ st.set_page_config(page_title="Bettermile Delivery Insights", page_icon="🚚", 
 # ==================== DARK THEME CSS ====================
 st.markdown("""
 <style>
-    /* Main background */
-    .stApp {
-        background-color: #0E1117;
-    }
-    
-    /* KPI Cards - Dark theme */
+    .stApp { background-color: #0E1117; }
     div[data-testid="stMetric"] {
         background-color: #1E1E2E !important;
         border: 1px solid #2D2D44 !important;
         border-radius: 12px !important;
         padding: 16px !important;
     }
-    
-    div[data-testid="stMetric"] label {
-        color: #A0A0B0 !important;
-        font-size: 0.85rem !important;
-    }
-    
-    div[data-testid="stMetric"] div {
-        color: #FFFFFF !important;
-    }
-    
-    /* Metric delta colors */
-    div[data-testid="stMetric"] div[data-testid="stMetricDelta"] {
-        color: #4CAF50 !important;
-    }
-    
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #161B22 !important;
-    }
-    
-    /* Sidebar text */
-    section[data-testid="stSidebar"] * {
-        color: #E0E0E0 !important;
-    }
-    
-    /* Buttons */
+    div[data-testid="stMetric"] label { color: #A0A0B0 !important; font-size: 0.85rem !important; }
+    div[data-testid="stMetric"] div { color: #FFFFFF !important; }
+    div[data-testid="stMetric"] div[data-testid="stMetricDelta"] { color: #4CAF50 !important; }
+    section[data-testid="stSidebar"] { background-color: #161B22 !important; }
+    section[data-testid="stSidebar"] * { color: #E0E0E0 !important; }
     .stButton>button {
-        background-color: #2D2D44 !important;
-        color: #FFFFFF !important;
-        border: 1px solid #4A4A6A !important;
-        border-radius: 8px !important;
+        background-color: #2D2D44 !important; color: #FFFFFF !important;
+        border: 1px solid #4A4A6A !important; border-radius: 8px !important;
     }
-    
-    .stButton>button:hover {
-        background-color: #3D3D5C !important;
-    }
-    
-    /* Headers */
-    h1, h2, h3 {
-        color: #FFFFFF !important;
-    }
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        background-color: #1E1E2E !important;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        color: #A0A0B0 !important;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        color: #FFFFFF !important;
-        background-color: #2D2D44 !important;
-    }
-    
-    /* Dataframes */
-    .stDataFrame {
-        background-color: #1E1E2E !important;
-    }
-    
-    /* Select boxes, sliders */
-    .stSelectbox, .stSlider, .stDateInput {
-        background-color: #1E1E2E !important;
-    }
-    
-    /* Main header */
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #FFFFFF;
-    }
-    
-    /* Subtitle */
-    .subtitle {
-        color: #A0A0B0;
-        font-style: italic;
-    }
+    .stButton>button:hover { background-color: #3D3D5C !important; }
+    h1, h2, h3 { color: #FFFFFF !important; }
+    .stTabs [data-baseweb="tab-list"] { background-color: #1E1E2E !important; }
+    .stTabs [data-baseweb="tab"] { color: #A0A0B0 !important; }
+    .stTabs [aria-selected="true"] { color: #FFFFFF !important; background-color: #2D2D44 !important; }
+    .stDataFrame { background-color: #1E1E2E !important; }
+    .stSelectbox, .stSlider, .stDateInput { background-color: #1E1E2E !important; }
+    .main-header { font-size: 2.5rem; font-weight: bold; color: #FFFFFF; }
+    .subtitle { color: #A0A0B0; font-style: italic; }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== DATA LOADING (NO CACHE TO AVOID BUFFERING) ====================
+# ==================== SESSION STATE FOR PERSISTENCE ====================
+if 'data_loaded' not in st.session_state:
+    st.session_state.data_loaded = False
+    st.session_state.depots = None
+    st.session_state.drivers = None
+    st.session_state.deliveries = None
+
+# ==================== DATA LOADING ====================
 def generate_data_once():
     """Generate data only if it doesn't exist"""
     if os.path.exists('data/processed/deliveries_merged.csv') and os.path.exists('models/eta_model.pkl'):
-        print("Data already exists, skipping generation")
         return True
     
     from data_generator import DeliveryDataGenerator
@@ -141,13 +82,22 @@ def generate_data_once():
     return True
 
 def load_data():
-    """Load processed data"""
+    """Load processed data into session state"""
+    if st.session_state.data_loaded:
+        return st.session_state.depots, st.session_state.drivers, st.session_state.deliveries
+    
     depots = pd.read_csv('data/raw/depots.csv')
     drivers = pd.read_csv('data/raw/drivers.csv')
     deliveries = pd.read_csv('data/processed/deliveries_merged.csv')
     deliveries['date'] = pd.to_datetime(deliveries['date'])
     deliveries['scheduled_time'] = pd.to_datetime(deliveries['scheduled_time'])
     deliveries['actual_time'] = pd.to_datetime(deliveries['actual_time'])
+    
+    st.session_state.depots = depots
+    st.session_state.drivers = drivers
+    st.session_state.deliveries = deliveries
+    st.session_state.data_loaded = True
+    
     return depots, drivers, deliveries
 
 def calculate_kpis(deliveries_df):
@@ -177,12 +127,8 @@ def main():
         generate_data_once()
         st.rerun()
     
-    # Load data
-    try:
-        depots, drivers, deliveries = load_data()
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        st.stop()
+    # Load data (cached in session state)
+    depots, drivers, deliveries = load_data()
     
     # Filters
     st.sidebar.markdown("---")
@@ -243,9 +189,13 @@ def main():
     
     st.markdown("---")
     
-    # Tabs
+    # Tabs - use session state to track active tab and prevent reload
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = 0
+    
     t1, t2, t3, t4, t5 = st.tabs(["📊 Overview", "🗺️ Map", "👨‍💼 Drivers", "📈 Trends", "🔮 Predictions"])
     
+    # OVERVIEW TAB - Always fast
     with t1:
         st.subheader("📊 Delivery Performance Overview")
         col1, col2 = st.columns(2)
@@ -267,63 +217,85 @@ def main():
                     color='deliveries', color_continuous_scale='Blues', template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
     
+    # MAP TAB - Use placeholder to prevent blocking
     with t2:
         st.subheader("🗺️ Live Delivery Map")
-        m = folium.Map(location=[52.5200, 13.4050], zoom_start=11, tiles="CartoDB dark_matter")
-        for _, depot in depots.iterrows():
-            if depot['depot_name'] in selected_depots:
-                folium.Marker([depot['latitude'], depot['longitude']],
-                    popup=f"🏭 {depot['depot_name']}<br>Capacity: {depot['capacity']} parcels/day",
-                    icon=folium.Icon(color='blue', icon='warehouse', prefix='fa')).add_to(m)
-        sample = filtered.sample(min(500, len(filtered)))
-        for _, d in sample.iterrows():
-            color = 'green' if d['outcome'] == 'Delivered' else 'red'
-            folium.CircleMarker([d['delivery_lat'], d['delivery_lon']], radius=3,
-                color=color, fill=True, popup=f"{d['delivery_id']}<br>{d['outcome']}").add_to(m)
-        st_folium(m, width=700, height=500)
+        
+        # Use a smaller sample for faster rendering
+        map_placeholder = st.empty()
+        
+        with st.spinner("Loading map..."):
+            m = folium.Map(location=[52.5200, 13.4050], zoom_start=11, tiles="CartoDB dark_matter")
+            
+            # Add depots
+            for _, depot in depots.iterrows():
+                if depot['depot_name'] in selected_depots:
+                    folium.Marker([depot['latitude'], depot['longitude']],
+                        popup=f"🏭 {depot['depot_name']}<br>Capacity: {depot['capacity']} parcels/day",
+                        icon=folium.Icon(color='blue', icon='warehouse', prefix='fa')).add_to(m)
+            
+            # Use smaller sample for performance
+            sample_size = min(200, len(filtered))  # Reduced from 500 to 200
+            sample = filtered.sample(sample_size)
+            for _, d in sample.iterrows():
+                color = 'green' if d['outcome'] == 'Delivered' else 'red'
+                folium.CircleMarker([d['delivery_lat'], d['delivery_lon']], radius=3,
+                    color=color, fill=True, popup=f"{d['delivery_id']}<br>{d['outcome']}").add_to(m)
+            
+            map_placeholder.empty()  # Clear spinner
+            st_folium(m, width=700, height=500)
+        
         st.markdown("**Legend:** 🔵 Depots | 🟢 Success | 🔴 Failed")
     
+    # DRIVERS TAB
     with t3:
         st.subheader("👨‍💼 Driver Performance")
-        driver_perf = filtered.groupby(['driver_id', 'driver_name', 'experience_level']).agg({
-            'delivery_id': 'count', 'is_delivered': 'mean',
-            'customer_satisfaction': 'mean', 'delivery_duration_min': 'mean'
-        }).reset_index()
-        driver_perf.columns = ['Driver ID', 'Name', 'Experience', 'Deliveries', 
-                               'Success Rate', 'Avg Satisfaction', 'Avg Duration']
-        driver_perf['Success Rate'] = driver_perf['Success Rate'] * 100
-        st.dataframe(driver_perf.sort_values('Success Rate', ascending=False), use_container_width=True)
         
-        exp_perf = filtered.groupby('experience_level').agg({
-            'is_delivered': 'mean', 'customer_satisfaction': 'mean', 'delivery_duration_min': 'mean'
-        }).reset_index()
-        exp_perf['is_delivered'] = exp_perf['is_delivered'] * 100
-        fig = make_subplots(rows=1, cols=3, subplot_titles=('Success Rate', 'Satisfaction', 'Avg Duration'))
-        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['is_delivered'], marker_color='#4CAF50'), row=1, col=1)
-        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['customer_satisfaction'], marker_color='#2196F3'), row=1, col=2)
-        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['delivery_duration_min'], marker_color='#FF9800'), row=1, col=3)
-        fig.update_layout(height=400, showlegend=False, title_text="Performance by Experience Level",
-                         template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True)
+        with st.spinner("Loading driver data..."):
+            driver_perf = filtered.groupby(['driver_id', 'driver_name', 'experience_level']).agg({
+                'delivery_id': 'count', 'is_delivered': 'mean',
+                'customer_satisfaction': 'mean', 'delivery_duration_min': 'mean'
+            }).reset_index()
+            driver_perf.columns = ['Driver ID', 'Name', 'Experience', 'Deliveries', 
+                                   'Success Rate', 'Avg Satisfaction', 'Avg Duration']
+            driver_perf['Success Rate'] = driver_perf['Success Rate'] * 100
+            st.dataframe(driver_perf.sort_values('Success Rate', ascending=False), use_container_width=True)
+            
+            exp_perf = filtered.groupby('experience_level').agg({
+                'is_delivered': 'mean', 'customer_satisfaction': 'mean', 'delivery_duration_min': 'mean'
+            }).reset_index()
+            exp_perf['is_delivered'] = exp_perf['is_delivered'] * 100
+            fig = make_subplots(rows=1, cols=3, subplot_titles=('Success Rate', 'Satisfaction', 'Avg Duration'))
+            fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['is_delivered'], marker_color='#4CAF50'), row=1, col=1)
+            fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['customer_satisfaction'], marker_color='#2196F3'), row=1, col=2)
+            fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['delivery_duration_min'], marker_color='#FF9800'), row=1, col=3)
+            fig.update_layout(height=400, showlegend=False, title_text="Performance by Experience Level",
+                             template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig, use_container_width=True)
     
+    # TRENDS TAB
     with t4:
         st.subheader("📈 Trends & Patterns")
-        weather_impact = filtered.groupby('weather').agg({
-            'is_delivered': 'mean', 'customer_satisfaction': 'mean', 'delivery_duration_min': 'mean'
-        }).reset_index()
-        weather_impact['is_delivered'] = weather_impact['is_delivered'] * 100
-        col1, col2 = st.columns(2)
-        with col1:
-            fig = px.bar(weather_impact, x='weather', y='is_delivered', title="Success by Weather", 
-                        color='weather', template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
-        with col2:
-            fig = px.bar(weather_impact, x='weather', y='delivery_duration_min', title="Duration by Weather", 
-                        color='weather', template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+        
+        with st.spinner("Loading trends..."):
+            weather_impact = filtered.groupby('weather').agg({
+                'is_delivered': 'mean', 'customer_satisfaction': 'mean', 'delivery_duration_min': 'mean'
+            }).reset_index()
+            weather_impact['is_delivered'] = weather_impact['is_delivered'] * 100
+            col1, col2 = st.columns(2)
+            with col1:
+                fig = px.bar(weather_impact, x='weather', y='is_delivered', title="Success by Weather", 
+                            color='weather', template="plotly_dark")
+                st.plotly_chart(fig, use_container_width=True)
+            with col2:
+                fig = px.bar(weather_impact, x='weather', y='delivery_duration_min', title="Duration by Weather", 
+                            color='weather', template="plotly_dark")
+                st.plotly_chart(fig, use_container_width=True)
     
+    # PREDICTIONS TAB
     with t5:
         st.subheader("🔮 ETA Prediction Model")
+        
         try:
             model = joblib.load('models/eta_model.pkl')
             scaler = joblib.load('models/scaler.pkl')

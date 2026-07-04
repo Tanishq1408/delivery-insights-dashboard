@@ -16,37 +16,132 @@ import os
 # Page config
 st.set_page_config(page_title="Bettermile Delivery Insights", page_icon="🚚", layout="wide")
 
-# Custom CSS
+# ==================== DARK THEME CSS ====================
 st.markdown("""
 <style>
-    .main-header { font-size: 2.5rem; font-weight: bold; color: #1E3A5F; }
-    .stMetric { background-color: #f0f2f6; border-radius: 10px; padding: 10px; }
+    /* Main background */
+    .stApp {
+        background-color: #0E1117;
+    }
+    
+    /* KPI Cards - Dark theme */
+    div[data-testid="stMetric"] {
+        background-color: #1E1E2E !important;
+        border: 1px solid #2D2D44 !important;
+        border-radius: 12px !important;
+        padding: 16px !important;
+    }
+    
+    div[data-testid="stMetric"] label {
+        color: #A0A0B0 !important;
+        font-size: 0.85rem !important;
+    }
+    
+    div[data-testid="stMetric"] div {
+        color: #FFFFFF !important;
+    }
+    
+    /* Metric delta colors */
+    div[data-testid="stMetric"] div[data-testid="stMetricDelta"] {
+        color: #4CAF50 !important;
+    }
+    
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #161B22 !important;
+    }
+    
+    /* Sidebar text */
+    section[data-testid="stSidebar"] * {
+        color: #E0E0E0 !important;
+    }
+    
+    /* Buttons */
+    .stButton>button {
+        background-color: #2D2D44 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #4A4A6A !important;
+        border-radius: 8px !important;
+    }
+    
+    .stButton>button:hover {
+        background-color: #3D3D5C !important;
+    }
+    
+    /* Headers */
+    h1, h2, h3 {
+        color: #FFFFFF !important;
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #1E1E2E !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        color: #A0A0B0 !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        color: #FFFFFF !important;
+        background-color: #2D2D44 !important;
+    }
+    
+    /* Dataframes */
+    .stDataFrame {
+        background-color: #1E1E2E !important;
+    }
+    
+    /* Select boxes, sliders */
+    .stSelectbox, .stSlider, .stDateInput {
+        background-color: #1E1E2E !important;
+    }
+    
+    /* Main header */
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #FFFFFF;
+    }
+    
+    /* Subtitle */
+    .subtitle {
+        color: #A0A0B0;
+        font-style: italic;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-def generate_data():
-    """Generate all data from scratch"""
+# ==================== DATA LOADING (NO CACHE TO AVOID BUFFERING) ====================
+def generate_data_once():
+    """Generate data only if it doesn't exist"""
+    if os.path.exists('data/processed/deliveries_merged.csv') and os.path.exists('models/eta_model.pkl'):
+        print("Data already exists, skipping generation")
+        return True
+    
     from data_generator import DeliveryDataGenerator
     from data_pipeline import DataPipeline
     from feature_engineering import FeatureEngineer
     from eta_model import ETAPredictionModel
     
-    generator = DeliveryDataGenerator(n_drivers=50, n_depots=10, n_days=30)
-    depots, drivers, deliveries = generator.generate_all_data()
-    
-    pipeline = DataPipeline()
-    merged = pipeline.run_pipeline()
-    
-    engineer = FeatureEngineer()
-    ml_data = engineer.run()
-    
-    model = ETAPredictionModel()
-    metrics, importance = model.run()
-    
-    return depots, drivers, merged, metrics, importance
+    with st.spinner("🚀 First-time setup: Generating data & training model... (1-2 minutes)"):
+        generator = DeliveryDataGenerator(n_drivers=50, n_depots=10, n_days=30)
+        depots, drivers, deliveries = generator.generate_all_data()
+        
+        pipeline = DataPipeline()
+        merged = pipeline.run_pipeline()
+        
+        engineer = FeatureEngineer()
+        ml_data = engineer.run()
+        
+        model = ETAPredictionModel()
+        metrics, importance = model.run()
+        
+        st.success("✅ Setup complete!")
+    return True
 
-def load_processed_data():
-    """Load already processed data"""
+def load_data():
+    """Load processed data"""
     depots = pd.read_csv('data/raw/depots.csv')
     drivers = pd.read_csv('data/raw/drivers.csv')
     deliveries = pd.read_csv('data/processed/deliveries_merged.csv')
@@ -70,32 +165,21 @@ def calculate_kpis(deliveries_df):
         'avg_duration': avg_dur, 'failed_deliveries': failed
     }
 
+# ==================== MAIN APP ====================
 def main():
+    # Sidebar
     st.sidebar.title("🚚 Delivery Insights")
     st.sidebar.markdown("---")
     
-    # Data generation
-    st.sidebar.subheader("⚙️ Data Setup")
-    if st.sidebar.button("🔄 Generate Fresh Data & Train Model"):
-        with st.spinner("Generating data... This takes 1-2 minutes..."):
-            try:
-                depots, drivers, merged, metrics, importance = generate_data()
-                st.sidebar.success("✅ Done!")
-                st.sidebar.write(f"MAE: {metrics['mae']:.2f} min")
-                st.sidebar.write(f"Within 15min: {metrics['within_15min']:.1f}%")
-                st.session_state['data_ready'] = True
-            except Exception as e:
-                st.sidebar.error(f"❌ Error: {str(e)}")
-                st.stop()
-    
-    # Check if data exists
+    # Check if data exists, generate if not
     if not os.path.exists('data/processed/deliveries_merged.csv'):
-        st.sidebar.warning("⚠️ No data found. Click 'Generate Fresh Data' above.")
-        st.stop()
+        st.sidebar.info("📦 First time setup needed...")
+        generate_data_once()
+        st.rerun()
     
     # Load data
     try:
-        depots, drivers, deliveries = load_processed_data()
+        depots, drivers, deliveries = load_data()
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         st.stop()
@@ -103,20 +187,27 @@ def main():
     # Filters
     st.sidebar.markdown("---")
     st.sidebar.subheader("📅 Filters")
-    date_range = st.sidebar.date_input("Date Range",
+    
+    date_range = st.sidebar.date_input(
+        "Date Range",
         value=(deliveries['date'].min().date(), deliveries['date'].max().date()),
         min_value=deliveries['date'].min().date(),
-        max_value=deliveries['date'].max().date())
+        max_value=deliveries['date'].max().date()
+    )
     
-    selected_depots = st.sidebar.multiselect("Depots",
+    selected_depots = st.sidebar.multiselect(
+        "Depots",
         options=depots['depot_name'].tolist(),
-        default=depots['depot_name'].tolist()[:5])
+        default=depots['depot_name'].tolist()[:5]
+    )
     
-    selected_drivers = st.sidebar.multiselect("Driver Experience",
+    selected_drivers = st.sidebar.multiselect(
+        "Driver Experience",
         options=['New', 'Intermediate', 'Experienced', 'Expert'],
-        default=['New', 'Intermediate', 'Experienced', 'Expert'])
+        default=['New', 'Intermediate', 'Experienced', 'Expert']
+    )
     
-    # Filter
+    # Filter data
     filtered = deliveries[
         (deliveries['date'].dt.date >= date_range[0]) &
         (deliveries['date'].dt.date <= date_range[1]) &
@@ -125,18 +216,30 @@ def main():
     ]
     
     # Main content
-    st.markdown('<p class="main-header">🚚 Bettermile Delivery Insights Dashboard</p>', unsafe_allow_html=True)
-    st.markdown("*Real-time analytics for last-mile delivery optimization*")
+    st.markdown('<p class="main-header">🚚 Bettermile Delivery Insights Dashboard</p>', 
+                unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Real-time analytics for last-mile delivery optimization</p>', 
+                unsafe_allow_html=True)
     st.markdown("---")
     
-    # KPIs
+    # KPI Cards
     kpis = calculate_kpis(filtered)
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("📦 Total", f"{kpis['total_deliveries']:,}", f"{kpis['success_rate']:.1f}% success")
-    c2.metric("⏱️ On-Time", f"{kpis['on_time_rate']:.1f}%", "Target: 95%")
-    c3.metric("⭐ Satisfaction", f"{kpis['avg_satisfaction']:.2f}/5", f"{kpis['avg_satisfaction']-3:.2f} vs avg")
-    c4.metric("🕐 Avg Duration", f"{kpis['avg_duration']:.1f} min", f"{kpis['avg_duration']-20:.1f} min vs target")
-    c5.metric("❌ Failed", f"{kpis['failed_deliveries']:,}", f"{kpis['failed_deliveries']/kpis['total_deliveries']*100:.1f}% rate")
+    
+    with c1:
+        st.metric("📦 Total Deliveries", f"{kpis['total_deliveries']:,}",
+                  f"{kpis['success_rate']:.1f}% success")
+    with c2:
+        st.metric("⏱️ On-Time Rate", f"{kpis['on_time_rate']:.1f}%", "Target: 95%")
+    with c3:
+        st.metric("⭐ Avg Satisfaction", f"{kpis['avg_satisfaction']:.2f}/5",
+                  f"{kpis['avg_satisfaction']-3:.2f} vs avg")
+    with c4:
+        st.metric("🕐 Avg Duration", f"{kpis['avg_duration']:.1f} min",
+                  f"{kpis['avg_duration']-20:.1f} min vs target")
+    with c5:
+        st.metric("❌ Failed Deliveries", f"{kpis['failed_deliveries']:,}",
+                  f"{kpis['failed_deliveries']/kpis['total_deliveries']*100:.1f}% rate")
     
     st.markdown("---")
     
@@ -149,23 +252,24 @@ def main():
         with col1:
             outcome_counts = filtered['outcome'].value_counts()
             fig = px.pie(values=outcome_counts.values, names=outcome_counts.index,
-                        title="Delivery Outcomes", color_discrete_sequence=px.colors.qualitative.Set3)
+                        title="Delivery Outcomes", color_discrete_sequence=px.colors.qualitative.Set3,
+                        template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
         with col2:
             hourly_sat = filtered.groupby('hour')['customer_satisfaction'].mean().reset_index()
             fig = px.line(hourly_sat, x='hour', y='customer_satisfaction',
-                         title="Satisfaction by Hour", markers=True)
+                         title="Satisfaction by Hour", markers=True, template="plotly_dark")
             fig.update_layout(yaxis_range=[0, 5])
             st.plotly_chart(fig, use_container_width=True)
         
         daily_volume = filtered.groupby('date').size().reset_index(name='deliveries')
         fig = px.bar(daily_volume, x='date', y='deliveries', title="Daily Volume",
-                    color='deliveries', color_continuous_scale='Blues')
+                    color='deliveries', color_continuous_scale='Blues', template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
     
     with t2:
         st.subheader("🗺️ Live Delivery Map")
-        m = folium.Map(location=[52.5200, 13.4050], zoom_start=11)
+        m = folium.Map(location=[52.5200, 13.4050], zoom_start=11, tiles="CartoDB dark_matter")
         for _, depot in depots.iterrows():
             if depot['depot_name'] in selected_depots:
                 folium.Marker([depot['latitude'], depot['longitude']],
@@ -195,10 +299,11 @@ def main():
         }).reset_index()
         exp_perf['is_delivered'] = exp_perf['is_delivered'] * 100
         fig = make_subplots(rows=1, cols=3, subplot_titles=('Success Rate', 'Satisfaction', 'Avg Duration'))
-        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['is_delivered']), row=1, col=1)
-        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['customer_satisfaction']), row=1, col=2)
-        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['delivery_duration_min']), row=1, col=3)
-        fig.update_layout(height=400, showlegend=False, title_text="Performance by Experience")
+        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['is_delivered'], marker_color='#4CAF50'), row=1, col=1)
+        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['customer_satisfaction'], marker_color='#2196F3'), row=1, col=2)
+        fig.add_trace(go.Bar(x=exp_perf['experience_level'], y=exp_perf['delivery_duration_min'], marker_color='#FF9800'), row=1, col=3)
+        fig.update_layout(height=400, showlegend=False, title_text="Performance by Experience Level",
+                         template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig, use_container_width=True)
     
     with t4:
@@ -209,10 +314,12 @@ def main():
         weather_impact['is_delivered'] = weather_impact['is_delivered'] * 100
         col1, col2 = st.columns(2)
         with col1:
-            fig = px.bar(weather_impact, x='weather', y='is_delivered', title="Success by Weather", color='weather')
+            fig = px.bar(weather_impact, x='weather', y='is_delivered', title="Success by Weather", 
+                        color='weather', template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
         with col2:
-            fig = px.bar(weather_impact, x='weather', y='delivery_duration_min', title="Duration by Weather", color='weather')
+            fig = px.bar(weather_impact, x='weather', y='delivery_duration_min', title="Duration by Weather", 
+                        color='weather', template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
     
     with t5:
@@ -238,10 +345,10 @@ def main():
                 st.info("📊 Predicted: **12-18 minutes** (85% confidence)")
                 st.info("📊 Recommended window: **±15 minutes**")
         except:
-            st.warning("⚠️ Model not trained yet. Click 'Generate Fresh Data' first!")
+            st.warning("⚠️ Model not found. Data needs to be generated first.")
     
     st.markdown("---")
-    st.markdown("*Built for Bettermile Interview | Simulated data for demonstration*")
+    st.markdown("*Built with ❤️ for Bettermile Interview | Simulated data for demonstration*")
 
 if __name__ == '__main__':
     main()

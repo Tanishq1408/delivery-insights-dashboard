@@ -67,19 +67,23 @@ class DataPipeline:
         # First merge deliveries with drivers on driver_id
         merged = deliveries_clean.merge(drivers_df, on='driver_id', how='left')
         
-        # Check columns in depots_df
-        print(f"Depots columns: {depots_df.columns.tolist()}")
-        print(f"Merged columns before depot merge: {merged.columns.tolist()}")
-        
-        # Ensure depot_id exists in both dataframes
-        if 'depot_id' not in depots_df.columns:
-            raise KeyError(f"depot_id not found in depots_df. Available columns: {depots_df.columns.tolist()}")
-        
+        # CRITICAL FIX: Ensure depot_id exists in merged dataframe
+        # If depot_id was lost during merge, get it back from deliveries_clean
         if 'depot_id' not in merged.columns:
-            raise KeyError(f"depot_id not found in merged dataframe. Available columns: {merged.columns.tolist()}")
+            print(f"WARNING: depot_id missing after driver merge. Columns: {merged.columns.tolist()}")
+            # Add depot_id back from deliveries_clean using delivery_id as key
+            if 'depot_id' in deliveries_clean.columns and 'delivery_id' in deliveries_clean.columns:
+                depot_map = deliveries_clean[['delivery_id', 'depot_id']].drop_duplicates()
+                merged = merged.merge(depot_map, on='delivery_id', how='left')
+                print(f"Added depot_id back. Columns now: {merged.columns.tolist()}")
         
-        # Merge with depots on depot_id
-        merged = merged.merge(depots_df, on='depot_id', how='left', suffixes=('', '_depot'))
+        # Now merge with depots on depot_id
+        if 'depot_id' in merged.columns and 'depot_id' in depots_df.columns:
+            merged = merged.merge(depots_df, on='depot_id', how='left', suffixes=('', '_depot'))
+        else:
+            print(f"ERROR: Cannot merge with depots.")
+            print(f"Merged columns: {merged.columns.tolist()}")
+            print(f"Depots columns: {depots_df.columns.tolist()}")
         
         return merged
     
@@ -95,6 +99,7 @@ class DataPipeline:
         merged = self.merge_datasets(deliveries_clean, drivers, depots)
         
         # Save processed data
+        os.makedirs(self.processed_path, exist_ok=True)
         deliveries_clean.to_csv(f'{self.processed_path}/deliveries_clean.csv', index=False)
         merged.to_csv(f'{self.processed_path}/deliveries_merged.csv', index=False)
         

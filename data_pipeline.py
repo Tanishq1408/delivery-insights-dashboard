@@ -23,10 +23,13 @@ class DataPipeline:
         """Clean and enrich delivery data"""
         df = deliveries_df.copy()
         
-        # Convert datetime columns
-        df['scheduled_time'] = pd.to_datetime(df['scheduled_time'])
-        df['actual_time'] = pd.to_datetime(df['actual_time'])
-        df['date'] = pd.to_datetime(df['date'])
+        # Convert datetime columns with error handling
+        df['scheduled_time'] = pd.to_datetime(df['scheduled_time'], errors='coerce')
+        df['actual_time'] = pd.to_datetime(df['actual_time'], errors='coerce')
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        # Drop rows with invalid dates
+        df = df.dropna(subset=['scheduled_time', 'actual_time', 'date'])
         
         # Calculate delivery duration (minutes)
         df['delivery_duration_min'] = (df['actual_time'] - df['scheduled_time']).dt.total_seconds() / 60
@@ -68,22 +71,14 @@ class DataPipeline:
         merged = deliveries_clean.merge(drivers_df, on='driver_id', how='left')
         
         # CRITICAL FIX: Ensure depot_id exists in merged dataframe
-        # If depot_id was lost during merge, get it back from deliveries_clean
         if 'depot_id' not in merged.columns:
-            print(f"WARNING: depot_id missing after driver merge. Columns: {merged.columns.tolist()}")
-            # Add depot_id back from deliveries_clean using delivery_id as key
             if 'depot_id' in deliveries_clean.columns and 'delivery_id' in deliveries_clean.columns:
                 depot_map = deliveries_clean[['delivery_id', 'depot_id']].drop_duplicates()
                 merged = merged.merge(depot_map, on='delivery_id', how='left')
-                print(f"Added depot_id back. Columns now: {merged.columns.tolist()}")
         
         # Now merge with depots on depot_id
         if 'depot_id' in merged.columns and 'depot_id' in depots_df.columns:
             merged = merged.merge(depots_df, on='depot_id', how='left', suffixes=('', '_depot'))
-        else:
-            print(f"ERROR: Cannot merge with depots.")
-            print(f"Merged columns: {merged.columns.tolist()}")
-            print(f"Depots columns: {depots_df.columns.tolist()}")
         
         return merged
     

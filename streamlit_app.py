@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from plotlit.subplots import make_subplots
+from plotly.subplots import make_subplots
 import base64
 from io import BytesIO
 import os

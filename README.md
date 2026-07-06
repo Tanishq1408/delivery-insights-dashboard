@@ -5,7 +5,7 @@
 &gt; Built to demonstrate alignment with [Bettermile's](https://bettermile.com) mission 
 &gt; to transform parcel logistics through AI-powered route optimization and ETA prediction.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](YOUR_STREAMLIT_URL_HERE)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://delivery-insights-dashboard-rhza7pprwolkrqzx35gkfv.streamlit.app/)
 
 ## 🎯 What This Project Does
 
@@ -18,7 +18,7 @@ This interactive dashboard simulates a last-mile delivery operation with:
 
 ## 🚀 Live Demo
 
-**[Click here to view the live dashboard](YOUR_STREAMLIT_URL_HERE)**
+**[Click here to view the live dashboard](https://delivery-insights-dashboard-rhza7pprwolkrqzx35gkfv.streamlit.app/)**
 
 ## 🛠️ Tech Stack
 
@@ -66,4 +66,4 @@ Last-mile delivery accounts for **53% of total shipping costs**. This project ad
 - Passionate about AI, logistics, and real-world impact
 - Built this project specifically for the Bettermile interview
 
-📧 tanishq1602@gmail.com | 🔗 [LinkedIn](your-linkedin)
+📧 tanishq1602@gmail.com | 
